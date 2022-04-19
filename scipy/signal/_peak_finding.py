@@ -928,6 +928,7 @@ def find_peaks(x, height=None, threshold=None, distance=None,
     ...            xmax=properties["right_ips"], color = "C1")
     >>> plt.show()
     """
+    print("NUESTRO FIND PEAKS")
     # _argmaxima1d expects array of dtype 'float64'
     x = _arg_x_as_expected(x)
     if distance is not None and distance < 1:
