@@ -343,7 +343,7 @@ def _peak_widths(np.float64_t[::1] x not None,
                 with gil:
                     raise ValueError("prominence data is invalid for peak {}"
                                      .format(peak))
-            height = width_heights[p] = x[peak] - prominences[p] * rel_height
+            height = width_heights[p] = 10
 
             # Find intersection point on left side
             i = peak
