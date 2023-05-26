@@ -16,6 +16,7 @@ from scipy.signal import (argrelextrema, BadCoefficients, bessel, besselap, bili
                           firwin, freqs_zpk, freqs, freqz, freqz_zpk,
                           gammatone, group_delay, iircomb, iirdesign, iirfilter,
                           iirnotch, iirpeak, lp2bp, lp2bs, lp2hp, lp2lp, normalize,
+                          medfilt, order_filter,
                           sos2tf, sos2zpk, sosfreqz, tf2sos, tf2zpk, zpk2sos,
                           zpk2tf, bilinear_zpk, lp2lp_zpk, lp2hp_zpk, lp2bp_zpk,
                           lp2bs_zpk)
@@ -700,7 +701,7 @@ class TestFreqz:
             a = as_[ii]
             expected_w = np.linspace(0, 2 * np.pi, len(b), endpoint=False)
             w, h = freqz(b, a, worN=expected_w, whole=True)  # polyval
-            err_msg = 'b = %s, a=%s' % (b, a)
+            err_msg = f'b = {b}, a={a}'
             assert_array_almost_equal(w, expected_w, err_msg=err_msg)
             assert_array_almost_equal(h, hs_whole[ii], err_msg=err_msg)
             w, h = freqz(b, a, worN=len(b), whole=True)  # FFT
@@ -2368,15 +2369,15 @@ class TestBessel:
                 for N in (0, 1, 2, 3, 10):
                     for fc in (100, 100.1, 432.12345):
                         for btype in ('lp', 'hp'):
-                            ba1 = bessel(N, fc, btype, fs=fs)
-                            ba2 = bessel(N, fc/(fs/2), btype)
+                            ba1 = bessel(N, fc, btype, norm=norm, fs=fs)
+                            ba2 = bessel(N, fc/(fs/2), btype, norm=norm)
                             assert_allclose(ba1, ba2)
                     for fc in ((100, 200), (100.1, 200.2), (321.123, 432.123)):
                         for btype in ('bp', 'bs'):
-                            ba1 = bessel(N, fc, btype, fs=fs)
+                            ba1 = bessel(N, fc, btype, norm=norm, fs=fs)
                             for seq in (list, tuple, array):
                                 fcnorm = seq([f/(fs/2) for f in fc])
-                                ba2 = bessel(N, fcnorm, btype)
+                                ba2 = bessel(N, fcnorm, btype, norm=norm)
                                 assert_allclose(ba1, ba2)
 
 
@@ -3694,7 +3695,7 @@ class TestIIRPeak:
 
 
 class TestIIRComb:
-    # Test erroneus input cases
+    # Test erroneous input cases
     def test_invalid_input(self):
         # w0 is <= 0 or >= fs / 2
         fs = 1000
@@ -3706,6 +3707,15 @@ class TestIIRComb:
         for args in [(120, 30), (157, 35)]:
             with pytest.raises(ValueError, match='fs must be divisible '):
                 iircomb(*args, fs=fs)
+
+        # https://github.com/scipy/scipy/issues/14043#issuecomment-1107349140
+        # Previously, fs=44100, w0=49.999 was rejected, but fs=2,
+        # w0=49.999/int(44100/2) was accepted. Now it is rejected, too.
+        with pytest.raises(ValueError, match='fs must be divisible '):
+            iircomb(w0=49.999/int(44100/2), Q=30)
+
+        with pytest.raises(ValueError, match='fs must be divisible '):
+            iircomb(w0=49.999, Q=30, fs=44100)
 
         # Filter type is not notch or peak
         for args in [(0.2, 30, 'natch'), (0.5, 35, 'comb')]:
@@ -3728,6 +3738,25 @@ class TestIIRComb:
         # Verify that the first notch sits at 1000 Hz
         comb1 = comb_points[0]
         assert_allclose(freqs[comb1], 1000)
+
+    # Verify pass_zero parameter
+    @pytest.mark.parametrize('ftype,pass_zero,peak,notch',
+                             [('peak', True, 123.45, 61.725),
+                              ('peak', False, 61.725, 123.45),
+                              ('peak', None, 61.725, 123.45),
+                              ('notch', None, 61.725, 123.45),
+                              ('notch', True, 123.45, 61.725),
+                              ('notch', False, 61.725, 123.45)])
+    def test_pass_zero(self, ftype, pass_zero, peak, notch):
+        # Create a notching or peaking comb filter
+        b, a = iircomb(123.45, 30, ftype=ftype, fs=1234.5, pass_zero=pass_zero)
+
+        # Compute the frequency response
+        freqs, response = freqz(b, a, [peak, notch], fs=1234.5)
+
+        # Verify that expected notches are notches and peaks are peaks
+        assert abs(response[0]) > 0.99
+        assert abs(response[1]) < 1e-10
 
     # All built-in IIR filters are real, so should have perfectly
     # symmetrical poles and zeros. Then ba representation (using
@@ -3760,6 +3789,18 @@ class TestIIRComb:
                    0.0, 0.0, 0.0, 0.0, 0.914040348817395]
         assert_allclose(b_peak, b_peak2)
         assert_allclose(a_peak, a_peak2)
+
+    # Verify that https://github.com/scipy/scipy/issues/14043 is fixed
+    def test_nearest_divisor(self):
+        # Create a notching comb filter
+        b, a = iircomb(50/int(44100/2), 50.0, ftype='notch')
+
+        # Compute the frequency response at an upper harmonic of 50
+        freqs, response = freqz(b, a, [22000], fs=44100)
+
+        # Before bug fix, this would produce N = 881, so that 22 kHz was ~0 dB.
+        # Now N = 882 correctly and 22 kHz should be a notch <-220 dB
+        assert abs(response[0]) < 1e-10
 
 
 class TestIIRDesign:
@@ -3943,6 +3984,15 @@ class TestIIRFilter:
         sos2 = iirfilter(N=1, Wn=1, btype='low', analog=True, output='sos')
         assert_array_almost_equal(sos, sos2)
 
+    def test_wn1_ge_wn0(self):
+        # gh-15773: should raise error if Wn[0] >= Wn[1]
+        with pytest.raises(ValueError,
+                           match=r"Wn\[0\] must be less than Wn\[1\]"):
+            iirfilter(2, [0.5, 0.5])
+        with pytest.raises(ValueError,
+                           match=r"Wn\[0\] must be less than Wn\[1\]"):
+            iirfilter(2, [0.6, 0.5])
+
 
 class TestGroupDelay:
     def test_identity_filter(self):
@@ -4105,3 +4155,86 @@ class TestGammatone:
               0.793651554625368]
         assert_allclose(b, b2)
         assert_allclose(a, a2)
+
+
+class TestOrderFilter:
+    def test_doc_example(self):
+        x = np.arange(25).reshape(5, 5)
+        domain = np.identity(3)
+
+        # minimum of elements 1,3,9 (zero-padded) on phone pad
+        # 7,5,3 on numpad
+        expected = np.array(
+            [[0., 0., 0., 0., 0.],
+             [0., 0., 1., 2., 0.],
+             [0., 5., 6., 7., 0.],
+             [0., 10., 11., 12., 0.],
+             [0., 0., 0., 0., 0.]],
+        )
+        assert_allclose(order_filter(x, domain, 0), expected)
+
+        # maximum of elements 1,3,9 (zero-padded) on phone pad
+        # 7,5,3 on numpad
+        expected = np.array(
+            [[6., 7., 8., 9., 4.],
+             [11., 12., 13., 14., 9.],
+             [16., 17., 18., 19., 14.],
+             [21., 22., 23., 24., 19.],
+             [20., 21., 22., 23., 24.]],
+        )
+        assert_allclose(order_filter(x, domain, 2), expected)
+
+        # and, just to complete the set, median of zero-padded elements
+        expected = np.array(
+            [[0, 1, 2, 3, 0],
+             [5, 6, 7, 8, 3],
+             [10, 11, 12, 13, 8],
+             [15, 16, 17, 18, 13],
+             [0, 15, 16, 17, 18]],
+        )
+        assert_allclose(order_filter(x, domain, 1), expected)
+
+    def test_medfilt_order_filter(self):
+        x = np.arange(25).reshape(5, 5)
+
+        # median of zero-padded elements 1,5,9 on phone pad
+        # 7,5,3 on numpad
+        expected = np.array(
+            [[0, 1, 2, 3, 0],
+             [1, 6, 7, 8, 4],
+             [6, 11, 12, 13, 9],
+             [11, 16, 17, 18, 14],
+             [0, 16, 17, 18, 0]],
+        )
+        assert_allclose(medfilt(x, 3), expected)
+
+        assert_allclose(
+            order_filter(x, np.ones((3, 3)), 4),
+            expected
+        )
+
+    def test_order_filter_asymmetric(self):
+        x = np.arange(25).reshape(5, 5)
+        domain = np.array(
+            [[1, 1, 0],
+             [0, 1, 0],
+             [0, 0, 0]],
+        )
+
+        expected = np.array(
+            [[0, 0, 0, 0, 0],
+             [0, 0, 1, 2, 3],
+             [0, 5, 6, 7, 8],
+             [0, 10, 11, 12, 13],
+             [0, 15, 16, 17, 18]]
+        )
+        assert_allclose(order_filter(x, domain, 0), expected)
+
+        expected = np.array(
+            [[0, 0, 0, 0, 0],
+             [0, 1, 2, 3, 4],
+             [5, 6, 7, 8, 9],
+             [10, 11, 12, 13, 14],
+             [15, 16, 17, 18, 19]]
+        )
+        assert_allclose(order_filter(x, domain, 1), expected)

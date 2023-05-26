@@ -1002,6 +1002,24 @@ def test_args():
     assert_allclose(zfinalevents[2], [zfinal])
 
 
+def test_array_rtol():
+    # solve_ivp had a bug with array_like `rtol`; see gh-15482
+    # check that it's fixed
+    def f(t, y):
+        return y[0], y[1]
+
+    # no warning (or error) when `rtol` is array_like
+    sol = solve_ivp(f, (0, 1), [1., 1.], rtol=[1e-1, 1e-1])
+    err1 = np.abs(np.linalg.norm(sol.y[:, -1] - np.exp(1)))
+
+    # warning when an element of `rtol` is too small
+    with pytest.warns(UserWarning, match="At least one element..."):
+        sol = solve_ivp(f, (0, 1), [1., 1.], rtol=[1e-1, 1e-16])
+        err2 = np.abs(np.linalg.norm(sol.y[:, -1] - np.exp(1)))
+
+    # tighter rtol improves the error
+    assert err2 < err1
+
 @pytest.mark.parametrize('method', ['RK23', 'RK45', 'DOP853', 'Radau', 'BDF', 'LSODA'])
 def test_integration_zero_rhs(method):
     result = solve_ivp(fun_zero, [0, 10], np.ones(3), method=method)
@@ -1020,3 +1038,10 @@ def test_args_single_value():
 
     sol = solve_ivp(fun_with_arg, (0, 0.1), [1], args=(-1,))
     assert_allclose(sol.y[0, -1], np.exp(-0.1))
+
+@pytest.mark.parametrize("f0_fill", [np.nan, np.inf])
+def test_initial_state_finiteness(f0_fill):
+    # regression test for gh-17846
+    msg = "All components of the initial state `y0` must be finite."
+    with pytest.raises(ValueError, match=msg):
+        solve_ivp(fun_zero, [0, 10], np.full(3, f0_fill))

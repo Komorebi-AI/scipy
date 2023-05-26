@@ -3,6 +3,7 @@
 __all__ = ['bicg','bicgstab','cg','cgs','gmres','qmr']
 
 import warnings
+from textwrap import dedent
 import numpy as np
 
 from . import _iterative
@@ -60,7 +61,6 @@ M : {sparse matrix, ndarray, LinearOperator}
 callback : function
     User-supplied function to call after each iteration.  It is called
     as callback(xk), where xk is the current solution vector.
-
 """
 
 
@@ -120,7 +120,7 @@ def set_docstring(header, Ainfo, footer='', atol_default='0'):
     def combine(fn):
         fn.__doc__ = '\n'.join((header, common_doc1,
                                 '    ' + Ainfo.replace('\n', '\n    '),
-                                common_doc2, footer))
+                                common_doc2, dedent(footer)))
         return fn
     return combine
 
@@ -130,10 +130,10 @@ def set_docstring(header, Ainfo, footer='', atol_default='0'):
                'Alternatively, ``A`` can be a linear operator which can\n'
                'produce ``Ax`` and ``A^T x`` using, e.g.,\n'
                '``scipy.sparse.linalg.LinearOperator``.',
-               footer="""
-
+               footer="""\
                Examples
                --------
+               >>> import numpy as np
                >>> from scipy.sparse import csc_matrix
                >>> from scipy.sparse.linalg import bicg
                >>> A = csc_matrix([[3, 2, 0], [1, -1, 0], [0, 5, 1]], dtype=float)
@@ -159,7 +159,8 @@ def bicg(A, b, x0=None, tol=1e-5, maxiter=None, M=None, callback=None, atol=None
     ltr = _type_conv[x.dtype.char]
     revcom = getattr(_iterative, ltr + 'bicgrevcom')
 
-    get_residual = lambda: np.linalg.norm(matvec(x) - b)
+    def get_residual():
+        return np.linalg.norm(matvec(x) - b)
     atol = _get_atol(tol, atol, np.linalg.norm(b), get_residual, 'bicg')
     if atol == 'exit':
         return postprocess(x), 0
@@ -218,15 +219,18 @@ def bicg(A, b, x0=None, tol=1e-5, maxiter=None, M=None, callback=None, atol=None
                'Alternatively, ``A`` can be a linear operator which can\n'
                'produce ``Ax`` using, e.g.,\n'
                '``scipy.sparse.linalg.LinearOperator``.',
-               footer="""
-
+               footer="""\
                Examples
                --------
+               >>> import numpy as np
                >>> from scipy.sparse import csc_matrix
                >>> from scipy.sparse.linalg import bicgstab
-               >>> R = np.random.randn(5, 5)
+               >>> R = np.array([[4, 2, 0, 1],
+               ...               [3, 0, 0, 2],
+               ...               [0, 1, 1, 1],
+               ...               [0, 2, 1, 0]])
                >>> A = csc_matrix(R)
-               >>> b = np.random.randn(5)
+               >>> b = np.array([-1, -0.5, -1, 2])
                >>> x, exit_code = bicgstab(A, b)
                >>> print(exit_code)  # 0 indicates successful convergence
                0
@@ -246,7 +250,8 @@ def bicgstab(A, b, x0=None, tol=1e-5, maxiter=None, M=None, callback=None, atol=
     ltr = _type_conv[x.dtype.char]
     revcom = getattr(_iterative, ltr + 'bicgstabrevcom')
 
-    get_residual = lambda: np.linalg.norm(matvec(x) - b)
+    def get_residual():
+        return np.linalg.norm(matvec(x) - b)
     atol = _get_atol(tol, atol, np.linalg.norm(b), get_residual, 'bicgstab')
     if atol == 'exit':
         return postprocess(x), 0
@@ -300,16 +305,18 @@ def bicgstab(A, b, x0=None, tol=1e-5, maxiter=None, M=None, callback=None, atol=
                'Alternatively, ``A`` can be a linear operator which can\n'
                'produce ``Ax`` using, e.g.,\n'
                '``scipy.sparse.linalg.LinearOperator``.',
-               footer="""
-
+               footer="""\
                Examples
                --------
+               >>> import numpy as np
                >>> from scipy.sparse import csc_matrix
                >>> from scipy.sparse.linalg import cg
-               >>> R = np.random.randn(5, 5)
-               >>> positive_definite = R @ R.T
-               >>> A = csc_matrix(positive_definite)
-               >>> b = np.random.randn(5)
+               >>> P = np.array([[4, 0, 1, 0],
+               ...               [0, 5, 0, 0],
+               ...               [1, 0, 3, 2],
+               ...               [0, 0, 2, 4]])
+               >>> A = csc_matrix(P)
+               >>> b = np.array([-1, -0.5, -1, 2])
                >>> x, exit_code = cg(A, b)
                >>> print(exit_code)    # 0 indicates successful convergence
                0
@@ -330,7 +337,8 @@ def cg(A, b, x0=None, tol=1e-5, maxiter=None, M=None, callback=None, atol=None):
     ltr = _type_conv[x.dtype.char]
     revcom = getattr(_iterative, ltr + 'cgrevcom')
 
-    get_residual = lambda: np.linalg.norm(matvec(x) - b)
+    def get_residual():
+        return np.linalg.norm(matvec(x) - b)
     atol = _get_atol(tol, atol, np.linalg.norm(b), get_residual, 'cg')
     if atol == 'exit':
         return postprocess(x), 0
@@ -388,15 +396,18 @@ def cg(A, b, x0=None, tol=1e-5, maxiter=None, M=None, callback=None, atol=None):
                'Alternatively, ``A`` can be a linear operator which can\n'
                'produce ``Ax`` using, e.g.,\n'
                '``scipy.sparse.linalg.LinearOperator``.',
-               footer="""
-
+               footer="""\
                Examples
                --------
+               >>> import numpy as np
                >>> from scipy.sparse import csc_matrix
                >>> from scipy.sparse.linalg import cgs
-               >>> R = np.random.randn(5, 5)
+               >>> R = np.array([[4, 2, 0, 1],
+               ...               [3, 0, 0, 2],
+               ...               [0, 1, 1, 1],
+               ...               [0, 2, 1, 0]])
                >>> A = csc_matrix(R)
-               >>> b = np.random.randn(5)
+               >>> b = np.array([-1, -0.5, -1, 2])
                >>> x, exit_code = cgs(A, b)
                >>> print(exit_code)  # 0 indicates successful convergence
                0
@@ -417,7 +428,8 @@ def cgs(A, b, x0=None, tol=1e-5, maxiter=None, M=None, callback=None, atol=None)
     ltr = _type_conv[x.dtype.char]
     revcom = getattr(_iterative, ltr + 'cgsrevcom')
 
-    get_residual = lambda: np.linalg.norm(matvec(x) - b)
+    def get_residual():
+        return np.linalg.norm(matvec(x) - b)
     atol = _get_atol(tol, atol, np.linalg.norm(b), get_residual, 'cgs')
     if atol == 'exit':
         return postprocess(x), 0
@@ -529,6 +541,8 @@ def gmres(A, b, x0=None, tol=1e-5, restart=None, maxiter=None, M=None, callback=
         preconditioning dramatically improves the rate of convergence,
         which implies that fewer iterations are needed to reach a given
         error tolerance.  By default, no preconditioner is used.
+        In this implementation, left preconditioning is used,
+        and the preconditioned residual is minimized.
     callback : function
         User-supplied function to call after each iteration.  It is called
         as `callback(args)`, where `args` are selected by `callback_type`.
@@ -540,8 +554,11 @@ def gmres(A, b, x0=None, tol=1e-5, restart=None, maxiter=None, M=None, callback=
           - ``legacy`` (default): same as ``pr_norm``, but also changes the
             meaning of 'maxiter' to count inner iterations instead of restart
             cycles.
-    restrt : int, optional
-        DEPRECATED - use `restart` instead.
+    restrt : int, optional, deprecated
+
+        .. deprecated:: 0.11.0
+           `gmres` keyword argument `restrt` is deprecated infavour of
+           `restart` and will be removed in SciPy 1.12.0.
 
     See Also
     --------
@@ -561,6 +578,7 @@ def gmres(A, b, x0=None, tol=1e-5, restart=None, maxiter=None, M=None, callback=
 
     Examples
     --------
+    >>> import numpy as np
     >>> from scipy.sparse import csc_matrix
     >>> from scipy.sparse.linalg import gmres
     >>> A = csc_matrix([[3, 2, 0], [1, -1, 0], [0, 5, 1]], dtype=float)
@@ -578,6 +596,10 @@ def gmres(A, b, x0=None, tol=1e-5, restart=None, maxiter=None, M=None, callback=
     elif restart is not None:
         raise ValueError("Cannot specify both restart and restrt keywords. "
                          "Preferably use 'restart' only.")
+    else:
+        msg = ("'gmres' keyword argument 'restrt' is deprecated infavour of "
+               "'restart' and will be removed in SciPy 1.12.0.")
+        warnings.warn(msg, DeprecationWarning, stacklevel=2)
 
     if callback is not None and callback_type is None:
         # Warn about 'callback_type' semantic changes.
@@ -593,7 +615,7 @@ def gmres(A, b, x0=None, tol=1e-5, restart=None, maxiter=None, M=None, callback=
         callback_type = 'legacy'
 
     if callback_type not in ('x', 'pr_norm', 'legacy'):
-        raise ValueError("Unknown callback_type: {!r}".format(callback_type))
+        raise ValueError(f"Unknown callback_type: {callback_type!r}")
 
     if callback is None:
         callback_type = 'none'
@@ -615,7 +637,8 @@ def gmres(A, b, x0=None, tol=1e-5, restart=None, maxiter=None, M=None, callback=
 
     bnrm2 = np.linalg.norm(b)
     Mb_nrm2 = np.linalg.norm(psolve(b))
-    get_residual = lambda: np.linalg.norm(matvec(x) - b)
+    def get_residual():
+        return np.linalg.norm(matvec(x) - b)
     atol = _get_atol(tol, atol, bnrm2, get_residual, 'gmres')
     if atol == 'exit':
         return postprocess(x), 0
@@ -766,6 +789,7 @@ def qmr(A, b, x0=None, tol=1e-5, maxiter=None, M1=None, M2=None, callback=None,
 
     Examples
     --------
+    >>> import numpy as np
     >>> from scipy.sparse import csc_matrix
     >>> from scipy.sparse.linalg import qmr
     >>> A = csc_matrix([[3, 2, 0], [1, -1, 0], [0, 5, 1]], dtype=float)
@@ -807,7 +831,8 @@ def qmr(A, b, x0=None, tol=1e-5, maxiter=None, M1=None, M2=None, callback=None,
     ltr = _type_conv[x.dtype.char]
     revcom = getattr(_iterative, ltr + 'qmrrevcom')
 
-    get_residual = lambda: np.linalg.norm(A.matvec(x) - b)
+    def get_residual():
+        return np.linalg.norm(A.matvec(x) - b)
     atol = _get_atol(tol, atol, np.linalg.norm(b), get_residual, 'qmr')
     if atol == 'exit':
         return postprocess(x), 0

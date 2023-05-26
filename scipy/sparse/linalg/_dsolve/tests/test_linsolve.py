@@ -381,7 +381,7 @@ class TestLinsolve:
             badops = [not_c_contig, not_1dim, bad_type, too_short]
 
             for badop in badops:
-                msg = "%r %r" % (spmatrix, badop)
+                msg = f"{spmatrix!r} {badop!r}"
                 # Not C-contiguous
                 assert_raises((ValueError, TypeError), _superlu.gssv,
                               N, A.nnz, badop(A.data), A.indices, A.indptr,
@@ -458,7 +458,7 @@ class TestSplu:
 
         # Input shapes
         for k in [None, 1, 2, self.n, self.n+2]:
-            msg = "k=%r" % (k,)
+            msg = f"k={k!r}"
 
             if k is None:
                 b = rng.rand(self.n)
@@ -722,6 +722,25 @@ class TestSpsolveTriangular:
     def setup_method(self):
         use_solver(useUmfpack=False)
 
+    def test_zero_diagonal(self):
+        n = 5
+        rng = np.random.default_rng(43876432987)
+        A = rng.standard_normal((n, n))
+        b = np.arange(n)
+        A = scipy.sparse.tril(A, k=0, format='csr')
+
+        x = spsolve_triangular(A, b, unit_diagonal=True, lower=True)
+
+        A.setdiag(1)
+        assert_allclose(A.dot(x), b)
+
+        # Regression test from gh-15199
+        A = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0]], dtype=np.float64)
+        b = np.array([1., 2., 3.])
+        with suppress_warnings() as sup:
+            sup.filter(SparseEfficiencyWarning, "CSR matrix format is")
+            spsolve_triangular(A, b, unit_diagonal=True)
+
     def test_singular(self):
         n = 5
         A = csr_matrix((n, n))
@@ -749,6 +768,7 @@ class TestSpsolveTriangular:
             assert_array_almost_equal(A.dot(x), b)
 
     @pytest.mark.slow
+    @pytest.mark.timeout(120)  # prerelease_deps_coverage_64bit_blas job
     @sup_sparse_efficiency
     def test_random(self):
         def random_triangle_matrix(n, lower=True):
