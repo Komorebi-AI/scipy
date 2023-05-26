@@ -92,3 +92,6 @@ Create a wheel from the built source::
 
    python setup.py bdist_wheel
 
+Install wheel::
+
+   pip install dist/scipy*.whl
