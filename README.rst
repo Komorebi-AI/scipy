@@ -72,3 +72,31 @@ comment on a relevant issue that is already open.
 If you are new to contributing to open source, `this
 guide <https://opensource.guide/how-to-contribute/>`__ helps explain why, what,
 and how to get involved.
+
+
+Create wheels from source
+-------------------------
+
+To create wheels for a specific version of SciPy, follow the [official instructions](https://docs.scipy.org/doc/scipy/dev/contributor/meson.html):
+
+```{bash}
+git clone git@github.com:Komorebi-AI/scipy.git
+git submodule update --init
+```
+
+Create a conda development environment, build SciPy with Meson and build scipy from source:
+
+```{bash}
+conda env create -f environment.yml
+conda activate scipy-dev
+python dev.py build
+```
+
+Create a wheel from the built source:
+
+```{bash}
+python setup.py bdist_wheel
+```
+
+```{bash}
+
