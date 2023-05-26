@@ -77,24 +77,18 @@ and how to get involved.
 Create wheels from source
 -------------------------
 
-To create wheels for a specific version of SciPy, follow the `official instructions <https://docs.scipy.org/doc/scipy/dev/contributor/meson.html>`__:
+To create wheels for a specific version of SciPy, follow the `official instructions <https://docs.scipy.org/doc/scipy/dev/contributor/meson.html>`__::
 
-A code block::
-  
    git clone git@github.com:Komorebi-AI/scipy.git
    git submodule update --init
 
-Create a conda development environment, build SciPy with Meson and build scipy from source:
-
-code block::
+Create a conda development environment, build SciPy with Meson and build scipy from source::
 
    conda env create -f environment.yml
    conda activate scipy-dev
    python dev.py build
 
-Create a wheel from the built source:
-
-code block::
+Create a wheel from the built source::
 
    python setup.py bdist_wheel
 
